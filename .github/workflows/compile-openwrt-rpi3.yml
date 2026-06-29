@@ -1,4 +1,4 @@
-name: Compile OpenWRT for RPi 3B (Custom)
+name: Compile OpenWRT for RPi 3B - iRouter v1.0
 
 on:
   workflow_dispatch:
@@ -7,11 +7,11 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout OpenWRT
+      - name: Checkout OpenWRT 25.12.4
         uses: actions/checkout@v4
         with:
           repository: openwrt/openwrt
-          ref: openwrt-24.10   # 穩定版，可改 main
+          ref: v25.12.4   # 最新穩定版
 
       - name: Update Feeds
         run: |
@@ -32,7 +32,7 @@ jobs:
           CONFIG_LUCI_LANG_zh_Hans=y
           CONFIG_LUCI_THEME_bootstrap=y
 
-          # 插件
+          # 插件（只保留你需要的）
           CONFIG_PACKAGE_luci-app-passwall=y
           CONFIG_PACKAGE_luci-app-ddns=y
           CONFIG_PACKAGE_luci-app-qbittorrent=y
@@ -42,35 +42,23 @@ jobs:
           CONFIG_PACKAGE_docker=y
           CONFIG_PACKAGE_dockerd=y
 
-          # 網路設定（旁路由模式）
-          CONFIG_PACKAGE_luci-proto-ipv4=y
-          # LAN IP 與其他設定會在首次啟動腳本處理
-
-          # 根目錄擴容（Overlay）
+          # Overlay 擴容到 4096M
           CONFIG_TARGET_ROOTFS_PARTSIZE=4096
-
-          # 其他常用
-          CONFIG_PACKAGE_luci=y
-          CONFIG_PACKAGE_luci-ssl=y
           EOF
 
-      - name: Defconfig & Compile
-        run: |
-          make defconfig
-          make download -j$(nproc) || true
-          make -j$(nproc) || make -j1 V=s
+      - name: Defconfig
+        run: make defconfig
 
-      - name: Firstboot Script (設定 LAN IP、密碼、旁路由)
+      - name: Firstboot Script (LAN IP、密碼、旁路由、版本顯示)
         run: |
           mkdir -p files/etc/uci-defaults
-          cat > files/etc/uci-defaults/99-custom-settings << 'EOL'
+          cat > files/etc/uci-defaults/99-irouter-settings << 'EOL'
           #!/bin/sh
-          # LAN IP
+          # LAN 設定 - 旁路由模式
           uci set network.lan.ipaddr='192.168.192.254'
           uci set network.lan.netmask='255.255.255.0'
           uci set network.lan.gateway='192.168.192.1'
           uci set network.lan.proto='static'
-          uci delete dhcp.lan.ignore
           uci set dhcp.lan.ignore='1'
           uci commit network
           uci commit dhcp
@@ -78,19 +66,22 @@ jobs:
           # 密碼
           echo -e "Mz2156822\nMz2156822" | passwd root
 
-          # 主機名
-          uci set system.@system[0].hostname='iRouter'
+          # 固件版本顯示
+          uci set system.@system[0].version='iRouter v1.0'
           uci commit system
 
-          # 重啟生效
+          # 重啟網路
           /etc/init.d/network restart
           EOL
-          chmod +x files/etc/uci-defaults/99-custom-settings
+          chmod +x files/etc/uci-defaults/99-irouter-settings
+
+      - name: Compile
+        run: |
+          make download -j$(nproc) || true
+          make -j$(nproc) || make -j1 V=s
 
       - name: Upload Firmware
         uses: actions/upload-artifact@v4
         with:
-          name: OpenWRT-RPi3B-Custom
-          path: |
-            bin/targets/bcm27xx/bcm2710/openwrt-*-bcm27xx-bcm2710-rpi-3-ext4-*.img.gz
-            bin/targets/bcm27xx/bcm2710/openwrt-*-bcm27xx-bcm2710-rpi-3-squashfs-*.img.gz
+          name: OpenWRT-iRouter-v1.0-RPi3B
+          path: bin/targets/bcm27xx/bcm2710/
