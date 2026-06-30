@@ -54,24 +54,27 @@ jobs:
           mkdir -p files/etc/uci-defaults
           cat > files/etc/uci-defaults/99-irouter-settings << 'EOL'
           #!/bin/sh
-          # LAN 設定 - 旁路由模式
+          # LAN 旁路由設定
           uci set network.lan.ipaddr='192.168.192.254'
           uci set network.lan.netmask='255.255.255.0'
           uci set network.lan.gateway='192.168.192.1'
           uci set network.lan.proto='static'
           uci set dhcp.lan.ignore='1'
-          uci commit network
-          uci commit dhcp
+          uci commit
 
           # 密碼
           echo -e "Mz2156822\nMz2156822" | passwd root
 
-          # 固件版本顯示
+          # 版本顯示
           uci set system.@system[0].version='iRouter v1.0'
           uci commit system
 
-          # 重啟網路
-          /etc/init.d/network restart
+          # 確保服務開啟
+          /etc/init.d/uhttpd enable
+          /etc/init.d/dropbear enable
+          /etc/init.d/firewall enable
+
+          echo "iRouter setup completed" > /etc/banner
           EOL
           chmod +x files/etc/uci-defaults/99-irouter-settings
 
