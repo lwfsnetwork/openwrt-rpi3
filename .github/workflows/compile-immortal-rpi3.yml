@@ -49,43 +49,39 @@ jobs:
       - name: Defconfig
         run: make defconfig
 
-      - name: Firstboot Script (加強版 - 確保生效)
+      - name: Firstboot Script (最強版 - 確保固件版本顯示)
         run: |
           mkdir -p files/etc/uci-defaults
           cat > files/etc/uci-defaults/99-irouter-settings << 'EOL'
           #!/bin/sh
-          # 等待系統完全啟動
-          sleep 5
+          sleep 12
 
-          # LAN 旁路由設定
+          # LAN 設定
           uci set network.lan.ipaddr='192.168.192.254'
           uci set network.lan.netmask='255.255.255.0'
           uci set network.lan.gateway='192.168.192.1'
           uci set network.lan.proto='static'
           uci set dhcp.lan.ignore='1'
-          uci commit network
-          uci commit dhcp
+          uci commit
 
           # 主機名
           uci set system.@system[0].hostname='iRouter'
-          uci commit system
 
-          # 固件版本
+          # 固件版本 - 多種方式強制設定
           uci set system.@system[0].version='iRouter v1.0'
+          echo "iRouter v1.0" > /etc/openwrt_version
+          echo "iRouter v1.0" > /etc/version
           uci commit system
 
           # 密碼
           echo -e "Mz2156822\nMz2156822" | passwd root
 
-          # 確保服務
+          # 服務重啟
           /etc/init.d/uhttpd restart
           /etc/init.d/dropbear restart
-          /etc/init.d/firewall restart
 
-          # 額外強制寫入 banner
-          echo -e "\n iRouter ImmortalWrt v1.0\n" > /etc/banner
-
-          echo "=== iRouter Setup Completed ===" >> /etc/firstboot.log
+          echo "iRouter ImmortalWrt v1.0" > /etc/banner
+          echo "Setup completed: iRouter v1.0" > /etc/firstboot.log
           EOL
           chmod +x files/etc/uci-defaults/99-irouter-settings
 
