@@ -1,0 +1,177 @@
+name: Build ImmortalWrt 25.12.2 For RPi3B
+
+
+on:
+  workflow_dispatch:
+
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-22.04
+
+
+    steps:
+
+
+      - name: Free Disk Space
+        run: |
+
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo apt clean
+
+          df -h
+
+
+
+
+      - name: Download ImmortalWrt ImageBuilder
+        run: |
+
+          wget -q \
+          https://downloads.immortalwrt.org/releases/25.12.2/targets/bcm27xx/bcm2710/immortalwrt-imagebuilder-25.12.2-bcm27xx-bcm2710.Linux-x86_64.tar.zst
+
+
+          sudo apt update
+
+          sudo apt install -y zstd
+
+
+          tar --use-compress-program=unzstd \
+          -xf immortalwrt-imagebuilder-25.12.2-bcm27xx-bcm2710.Linux-x86_64.tar.zst
+
+
+          mv immortalwrt-imagebuilder-25.12.2-bcm27xx-bcm2710.Linux-x86_64 imagebuilder
+
+
+          cd imagebuilder
+
+
+          ls -la
+
+          make info
+
+
+
+
+
+      - name: Prepare Custom Files
+        run: |
+
+          mkdir -p files/etc/uci-defaults
+
+
+          mkdir -p files/etc
+
+
+
+          echo "iRouter ImmortalWrt v1.1" > files/etc/banner
+
+
+
+          echo "DISTRIB_ID='iRouter'" > files/etc/openwrt_release
+          echo "DISTRIB_RELEASE='v1.1'" >> files/etc/openwrt_release
+          echo "DISTRIB_REVISION='ImmortalWrt 25.12.2'" >> files/etc/openwrt_release
+          echo "DISTRIB_DESCRIPTION='iRouter v1.1'" >> files/etc/openwrt_release
+          echo "echo 'Mz2156822\nMz2156822' | passwd root" >> files/etc/uci-defaults/99-irouter
+
+
+
+          echo "#!/bin/sh" > files/etc/uci-defaults/99-irouter
+
+
+          echo "sleep 10" >> files/etc/uci-defaults/99-irouter
+
+
+
+          echo "uci set network.lan.proto='static'" >> files/etc/uci-defaults/99-irouter
+          echo "uci set network.lan.ipaddr='192.168.192.254'" >> files/etc/uci-defaults/99-irouter
+          echo "uci set network.lan.netmask='255.255.255.0'" >> files/etc/uci-defaults/99-irouter
+          echo "uci set network.lan.gateway='192.168.192.1'" >> files/etc/uci-defaults/99-irouter
+
+
+
+          echo "uci set dhcp.lan.ignore='1'" >> files/etc/uci-defaults/99-irouter
+
+
+
+          echo "uci commit network" >> files/etc/uci-defaults/99-irouter
+          echo "uci commit dhcp" >> files/etc/uci-defaults/99-irouter
+
+
+
+          echo "uci set system.@system[0].hostname='iRouter'" >> files/etc/uci-defaults/99-irouter
+          echo "uci commit system" >> files/etc/uci-defaults/99-irouter
+
+
+
+          echo "sysctl -w net.ipv4.ip_forward=1" >> files/etc/uci-defaults/99-irouter
+
+
+
+          echo "/etc/init.d/firewall restart" >> files/etc/uci-defaults/99-irouter
+
+
+
+          chmod +x files/etc/uci-defaults/99-irouter
+
+
+
+
+   
+      - name: Build Image
+
+        run: |
+
+          cd imagebuilder
+
+
+          make image \
+          PROFILE="rpi-3" \
+          ROOTFS_PARTSIZE=4096 \
+          PACKAGES="\
+          luci \
+          luci-i18n-base-zh-cn \
+          luci-app-homeproxy \
+          luci-i18n-homeproxy-zh-cn \
+          luci-i18n-ddns-zh-cn \
+          luci-i18n-ttyd-zh-cn \
+          luci-i18n-qbittorrent-zh-cn \
+          luci-i18n-zerotier-zh-cn \
+          luci-i18n-hd-idle-zh-cn \
+          luci-i18n-samba4-zh-cn \
+          luci-i18n-hd-idle \
+          automount \
+          " \
+          FILES="../files"
+
+
+
+
+
+      - name: Show Output
+
+        run: |
+
+          ls -lh imagebuilder/bin/targets/bcm27xx/bcm2710/
+
+
+
+
+
+      - name: Upload Firmware
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: iRouter-v1.1-ImmortalWrt25.12.2-RPi3B-ImageBuilder
+
+          path: imagebuilder/bin/targets/bcm27xx/bcm2710/
